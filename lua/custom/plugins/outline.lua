@@ -22,7 +22,7 @@ return {
       }
     end,
     keys = { -- 配置快捷键
-      { '<F9>', ':AerialToggle<CR>', desc = 'Toggle Aerial' },
+      { '<leader>co', ':AerialToggle<CR>', desc = '[C]ode [O]utline' },
     },
   },
 }

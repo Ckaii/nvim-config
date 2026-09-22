@@ -20,8 +20,8 @@ return {
   opts = {
     workspaces = {
       {
-        name = '2025',
-        path = '~/selfLearn/obsidian/2025',
+        name = 'Big_4',
+        path = '~/Desktop/Big_4',
       },
     },
 

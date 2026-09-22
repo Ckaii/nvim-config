@@ -117,8 +117,13 @@ vim.schedule(function()
   vim.opt.clipboard = 'unnamedplus'
 end)
 
--- Enable break indent
+-- Wrap long lines at word boundaries and preserve indentation
+vim.opt.wrap = true
+vim.opt.linebreak = true
 vim.opt.breakindent = true
+
+-- Required by obsidian.nvim's additional Markdown UI features
+vim.opt.conceallevel = 2
 
 -- Save undo history
 vim.opt.undofile = true
@@ -325,6 +330,8 @@ require('lazy').setup({
         { '<leader>w', group = '[W]orkspace' },
         { '<leader>t', group = '[T]oggle' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
+        { '<leader>x', group = 'Trouble/Diagnostics' },
+        { '<leader>S', group = '[S]ession' },
       },
     },
   },
@@ -557,7 +564,7 @@ require('lazy').setup({
           --
           -- When you move your cursor, the highlights will be cleared (the second autocommand).
           local client = vim.lsp.get_client_by_id(event.data.client_id)
-          if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
+          if client and client:supports_method(vim.lsp.protocol.Methods.textDocument_documentHighlight) then
             local highlight_augroup = vim.api.nvim_create_augroup('kickstart-lsp-highlight', { clear = false })
             vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
               buffer = event.buf,
@@ -584,7 +591,7 @@ require('lazy').setup({
           -- code, if the language server you are using supports them
           --
           -- This may be unwanted, since they displace some of your code
-          if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
+          if client and client:supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
             map('<leader>th', function()
               vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled { bufnr = event.buf })
             end, '[T]oggle Inlay [H]ints')
@@ -628,8 +635,14 @@ require('lazy').setup({
         --    https://github.com/pmizio/typescript-tools.nvim
         --
         -- But for many setups, the LSP (`ts_ls`) will work just fine
-        -- ts_ls = {},
+        ts_ls = {},
         --
+
+        -- Angular support: angularls needs ts_ls + html + cssls alongside it
+        -- to fully cover component classes, templates, and styles.
+        html = { filetypes = { 'html', 'htmlangular' } },
+        cssls = {},
+        angularls = {},
 
         lua_ls = {
           -- cmd = {...},
@@ -906,29 +919,59 @@ require('lazy').setup({
   },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
-    branch = 'master', -- pinned: this config uses the legacy configs.lua API, not the main-branch rewrite
+    -- `master` is frozen upstream and crashes ("attempt to call method 'range'
+    -- (a nil value)") against newer Neovim core treesitter APIs; `main` is the
+    -- actively maintained branch, but it only manages parser installs now —
+    -- highlight/indent/folds are enabled directly via Neovim core APIs below.
+    branch = 'main',
     build = ':TSUpdate',
-    main = 'nvim-treesitter.configs', -- Sets main module to use for opts
-    -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
-    opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
-      -- Autoinstall languages that are not installed
-      auto_install = true,
-      highlight = {
-        enable = true,
-        -- Some languages depend on vim's regex highlighting system (such as Ruby) for indent rules.
-        --  If you are experiencing weird indenting issues, add the language to
-        --  the list of additional_vim_regex_highlighting and disabled languages for indent.
-        additional_vim_regex_highlighting = { 'ruby' },
-      },
-      indent = { enable = true, disable = { 'ruby' } },
-    },
-    -- There are additional nvim-treesitter modules that you can use to interact
-    -- with nvim-treesitter. You should go explore a few and see what interests you:
-    --
-    --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
-    --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
-    --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
+    lazy = false,
+    config = function()
+      local parsers = {
+        'bash',
+        'c',
+        'diff',
+        'html',
+        'lua',
+        'luadoc',
+        'markdown',
+        'markdown_inline',
+        'query',
+        'vim',
+        'vimdoc',
+        -- Angular/web stack
+        'angular',
+        'css',
+        'scss',
+        'typescript',
+        'tsx',
+        'javascript',
+      }
+      require('nvim-treesitter').install(parsers)
+
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = {
+          'bash',
+          'c',
+          'diff',
+          'html',
+          'lua',
+          'markdown',
+          'query',
+          'vim',
+          'help',
+          'css',
+          'scss',
+          'typescript',
+          'typescriptreact',
+          'javascript',
+        },
+        callback = function(args)
+          vim.treesitter.start(args.buf)
+          vim.bo[args.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+        end,
+      })
+    end,
   },
 
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
